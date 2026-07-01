@@ -2,6 +2,10 @@
 
 An AI-powered entertainment **discovery marketplace** built with Next.js. Five agents help you find your next watch or listen by mood, genre, and platform — with spoiler-free AI recommendations.
 
+**Live demo:** https://siwach-a11y.github.io/entertainment-agents/
+
+> The live demo is a static export, so the AI chat (which needs the server API route) is inactive there. Run locally with an `ANTHROPIC_API_KEY` for the full experience — browsing, filtering, ranking, and watchlists work everywhere.
+
 | Agent | Finds |
 |-------|-------|
 | 🎭 Micro Drama Discovery Agent | Vertical micro dramas (ReelShort, DramaBox, GoodShort) |
