@@ -314,3 +314,43 @@ export function formatScore(item: DiscoveryItem, config: DomainConfig): string {
 export function getDomainByAgentId(agentId: string): EntertainmentDomain | undefined {
   return domainOrder.find((d) => discoveryConfigs[d].agentId === agentId);
 }
+
+/**
+ * A real, guaranteed-valid destination for an item's primary action.
+ *
+ * The catalog is illustrative sample content, so per-title deep links don't
+ * resolve. Instead we send users to a live search for the title on the most
+ * relevant platform (JustWatch for film/TV, native search where reliable,
+ * Google as the catch-all) — so "Watch"/"Play" always lands somewhere useful.
+ */
+export function resultUrl(item: DiscoveryItem): string {
+  const enc = (s: string) => encodeURIComponent(s.trim());
+  const creator = item.creator.replace(/^dir\.\s*/i, "").replace(/^@/, "");
+  const titleCreator = `${item.title} ${creator}`.trim();
+
+  switch (item.platform) {
+    case "TikTok":
+      return `https://www.tiktok.com/search?q=${enc(item.title)}`;
+    case "YouTube Shorts":
+      return `https://www.youtube.com/results?search_query=${enc(item.title)}`;
+    case "X":
+      return `https://x.com/search?q=${enc(item.title)}`;
+    case "Spotify":
+      return `https://open.spotify.com/search/${enc(titleCreator)}`;
+    case "Apple Music":
+      return `https://music.apple.com/us/search?term=${enc(titleCreator)}`;
+    case "YouTube Music":
+      return `https://music.youtube.com/search?q=${enc(titleCreator)}`;
+    case "SoundCloud":
+      return `https://soundcloud.com/search?q=${enc(titleCreator)}`;
+    case "Netflix":
+      return `https://www.netflix.com/search?q=${enc(item.title)}`;
+    default:
+      break;
+  }
+
+  if (item.domain === "movie" || item.domain === "series") {
+    return `https://www.justwatch.com/us/search?q=${enc(item.title)}`;
+  }
+  return `https://www.google.com/search?q=${enc(titleCreator)}`;
+}

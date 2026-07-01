@@ -6,6 +6,7 @@ import {
   formatGrowth,
   formatMetric,
   formatScore,
+  resultUrl,
   type EntertainmentDomain,
   type MoodOption,
   type RankedItem,
@@ -206,7 +207,7 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
             actionLabel={config.actionLabel}
             saved={saved.has(item.id)}
             onSave={() => toggleSave(item.id)}
-            onAction={() => window.open(item.url, "_blank")}
+            onAction={() => window.open(resultUrl(item), "_blank", "noopener,noreferrer")}
             onDetails={() => askAboutItem(item)}
             showReasons={showReasons}
           />
