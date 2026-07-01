@@ -72,7 +72,7 @@ export default function ApiKeyManager({ compact = false, onChange }: ApiKeyManag
               onClick={remove}
               className="btn-secondary !py-1 !px-2.5 !text-xs !rounded-lg"
             >
-              Disconnect
+              Forget key
             </button>
           </div>
         )}

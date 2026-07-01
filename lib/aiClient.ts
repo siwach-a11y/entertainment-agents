@@ -6,13 +6,30 @@
  *      (localStorage); it is sent directly to api.anthropic.com and never to us.
  *
  * The browser-direct path uses the documented `anthropic-dangerous-direct-browser-access`
- * mechanism, which is appropriate for a personal/demo build where each user brings
- * their own key — not for a shared production key.
+ * mechanism, appropriate for a personal/demo build where each user brings their
+ * own key. It enables the web_search tool and returns both the answer text and
+ * the cited source links, so answers can render with clickable sources.
  */
 
 const KEY_STORAGE = "entertainment_agents_anthropic_key";
-const MODEL = "claude-opus-4-8";
+export const MODEL = "claude-opus-4-8";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const API_VERSION = "2023-06-01";
+
+const SEARCH_SYSTEM =
+  "You are a helpful entertainment discovery assistant. Answer concisely in a friendly, expert tone, using short paragraphs or compact lists. " +
+  "You have a web_search tool. Whenever the answer depends on current information — what's trending now, new releases, charts, box office, streaming availability, prices, or reviews — " +
+  "search the web first and base your answer on what you find. Cite the specific sources you used, preferring recent, reputable ones.";
+
+export interface Source {
+  url: string;
+  title: string;
+}
+
+export interface AssistantResult {
+  text: string;
+  sources: Source[];
+}
 
 export class MissingKeyError extends Error {
   constructor() {
@@ -45,28 +62,27 @@ export function maskKey(key: string): string {
   return `${key.slice(0, 7)}…${key.slice(-4)}`;
 }
 
-interface StreamOpts {
-  onText: (delta: string) => void;
+interface AskOpts {
   useWebSearch?: boolean;
   signal?: AbortSignal;
 }
 
 /**
- * Stream an assistant response. Tries the server route first; if there's no
- * backend (static hosting), falls back to a browser-direct call with the
+ * Ask the assistant and return the answer text plus any cited source links.
+ * Tries the server route first; falls back to a browser-direct call with the
  * visitor's stored key. Throws MissingKeyError when neither path is available.
  */
-export async function streamAssistant(prompt: string, opts: StreamOpts): Promise<void> {
+export async function askAssistant(prompt: string, opts: AskOpts = {}): Promise<AssistantResult> {
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, useWebSearch: opts.useWebSearch ?? false }),
+      body: JSON.stringify({ prompt, useWebSearch: opts.useWebSearch ?? true }),
       signal: opts.signal,
     });
     if (res.ok && res.body) {
-      await pumpPlainText(res.body, opts.onText);
-      return;
+      const text = await readAllText(res.body);
+      return { text: text.trim() || "(No response.)", sources: [] };
     }
   } catch {
     // No backend reachable — fall through to browser-direct.
@@ -74,83 +90,105 @@ export async function streamAssistant(prompt: string, opts: StreamOpts): Promise
 
   const key = getApiKey();
   if (!key) throw new MissingKeyError();
-  await streamDirect(prompt, key, opts);
+  return completeDirect(prompt, key, opts);
 }
 
-/** Read the server route's plain-text stream. */
-async function pumpPlainText(
-  body: ReadableStream<Uint8Array>,
-  onText: (delta: string) => void,
-): Promise<void> {
+async function readAllText(body: ReadableStream<Uint8Array>): Promise<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
+  let out = "";
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    onText(decoder.decode(value, { stream: true }));
+    out += decoder.decode(value, { stream: true });
   }
+  return out;
 }
 
-/** Call the Anthropic Messages API directly from the browser and stream text. */
-async function streamDirect(prompt: string, apiKey: string, opts: StreamOpts): Promise<void> {
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1024,
-      stream: true,
-      messages: [{ role: "user", content: prompt }],
-    }),
-    signal: opts.signal,
-  });
+/** Call the Anthropic Messages API directly with web search; return text + sources. */
+async function completeDirect(
+  prompt: string,
+  apiKey: string,
+  opts: AskOpts,
+): Promise<AssistantResult> {
+  const useWebSearch = opts.useWebSearch ?? true;
+  const messages: { role: string; content: unknown }[] = [{ role: "user", content: prompt }];
+  const MAX_ROUNDS = 4;
 
-  if (!res.ok || !res.body) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(describeError(res.status, detail));
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const res = await fetch(ANTHROPIC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": API_VERSION,
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 2048,
+        system: SEARCH_SYSTEM,
+        messages,
+        tools: useWebSearch ? [{ type: "web_search_20260209", name: "web_search" }] : undefined,
+      }),
+      signal: opts.signal,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(describeError(res.status, data));
+    if (data.stop_reason === "refusal") {
+      throw new Error("The request was declined by the model's safety system. Try rephrasing.");
+    }
+
+    messages.push({ role: "assistant", content: data.content });
+
+    // Server-side tool loop hit its iteration cap — resume the same turn.
+    if (data.stop_reason === "pause_turn" && round < MAX_ROUNDS - 1) continue;
+    break;
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
-      try {
-        const evt = JSON.parse(data);
-        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-          opts.onText(evt.delta.text as string);
+  return collectResult(messages);
+}
+
+/** Gather answer text and de-duplicated cited sources from all assistant turns. */
+function collectResult(messages: { role: string; content: unknown }[]): AssistantResult {
+  let text = "";
+  const sources: Source[] = [];
+  const seen = new Set<string>();
+
+  const addSource = (url?: string, title?: string) => {
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    sources.push({ url, title: title || url });
+  };
+
+  for (const message of messages) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) continue;
+    for (const block of message.content as Array<Record<string, unknown>>) {
+      if (block.type === "text") {
+        text += block.text as string;
+        for (const c of (block.citations as Array<Record<string, string>>) ?? []) {
+          addSource(c.url, c.title);
         }
-      } catch {
-        // Ignore partial/keepalive frames.
+      } else if (block.type === "web_search_tool_result") {
+        // Fallback when the model didn't attach inline citations.
+        const results = Array.isArray(block.content) ? (block.content as Array<Record<string, string>>) : [];
+        for (const r of results) {
+          if (r && r.type === "web_search_result") addSource(r.url, r.title);
+        }
       }
     }
   }
+
+  return { text: text.trim() || "(No text response.)", sources };
 }
 
-function describeError(status: number, detail: string): string {
-  if (status === 401) return "Invalid API key. Check the key and re-enter it.";
+function describeError(status: number, data: unknown): string {
+  if (status === 401) return "That API key was rejected (401). Use “Forget key” and re-enter it.";
   if (status === 403) return "This key isn't permitted to use this model.";
   if (status === 429) return "Rate limited by Anthropic — wait a moment and try again.";
   if (status >= 500) return "Anthropic is temporarily unavailable. Try again shortly.";
-  try {
-    const parsed = JSON.parse(detail);
-    if (parsed?.error?.message) return `Anthropic error: ${parsed.error.message}`;
-  } catch {
-    // fall through
-  }
+  const message = (data as { error?: { message?: string } })?.error?.message;
+  if (message) return `Anthropic error: ${message}`;
   return `Request failed (HTTP ${status}).`;
 }

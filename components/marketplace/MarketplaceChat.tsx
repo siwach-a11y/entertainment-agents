@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { agents } from "@/lib/data/agents";
-import { MissingKeyError, streamAssistant } from "@/lib/aiClient";
+import { askAssistant, MissingKeyError, type Source } from "@/lib/aiClient";
 import ApiKeyManager from "@/components/ui/ApiKeyManager";
+import SourceLinks from "@/components/ui/SourceLinks";
 
 export default function MarketplaceChat() {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
+  const [sources, setSources] = useState<Source[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [needKey, setNeedKey] = useState(false);
@@ -25,6 +27,7 @@ export default function MarketplaceChat() {
 
     setIsLoading(true);
     setResponse("");
+    setSources([]);
     setExpanded(true);
 
     const prompt = `You are the Entertainment Agents marketplace assistant. Based on the user's needs, recommend the best entertainment discovery agent(s) from our catalog.
@@ -37,14 +40,9 @@ User query: ${input.trim()}
 Recommend 1-3 agents that best match their needs. Explain why each is a good fit. Be concise and helpful.`;
 
     try {
-      let text = "";
-      await streamAssistant(prompt, {
-        onText: (delta) => {
-          text += delta;
-          setResponse(text);
-        },
-      });
-      if (!text) setResponse("(No response.)");
+      const result = await askAssistant(prompt, { useWebSearch: false });
+      setResponse(result.text);
+      setSources(result.sources);
     } catch (error) {
       if (error instanceof MissingKeyError) {
         setNeedKey(true);
@@ -71,6 +69,7 @@ Recommend 1-3 agents that best match their needs. Explain why each is a good fit
                   <span className="inline-block w-1.5 h-4 ml-0.5 bg-hub-blue animate-pulse-soft align-middle rounded-sm" />
                 )}
               </p>
+              {sources.length > 0 && <SourceLinks sources={sources} />}
               {needKey && <ApiKeyManager compact onChange={(has) => setNeedKey(!has)} />}
             </div>
           )}

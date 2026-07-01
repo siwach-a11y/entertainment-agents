@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import StatusBar from "./StatusBar";
 import ApiKeyManager from "./ApiKeyManager";
-import { MissingKeyError, streamAssistant } from "@/lib/aiClient";
+import SourceLinks from "./SourceLinks";
+import { askAssistant, MissingKeyError, MODEL, type Source } from "@/lib/aiClient";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  sources?: Source[];
 }
 
 interface AIChatProps {
@@ -38,8 +40,11 @@ export default function AIChat({
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    const userMessage: Message = { role: "user", content: text.trim() };
-    setMessages((prev) => [...prev, userMessage, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text.trim() },
+      { role: "assistant", content: "" },
+    ]);
     setInput("");
     setIsLoading(true);
 
@@ -47,31 +52,26 @@ export default function AIChat({
       ? `${systemContext}\n\nUser question: ${text.trim()}`
       : text.trim();
 
-    const setLast = (content: string) =>
+    const setLast = (msg: Message) =>
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content };
+        updated[updated.length - 1] = msg;
         return updated;
       });
 
     try {
-      let assistantText = "";
-      await streamAssistant(prompt, {
-        useWebSearch: true,
-        onText: (delta) => {
-          assistantText += delta;
-          setLast(assistantText);
-        },
-      });
-      if (!assistantText) setLast("(No response.)");
+      const result = await askAssistant(prompt, { useWebSearch: true });
+      setLast({ role: "assistant", content: result.text, sources: result.sources });
     } catch (error) {
-      setLast(
-        error instanceof MissingKeyError
-          ? MISSING_KEY_MESSAGE
-          : error instanceof Error
-            ? error.message
-            : "Sorry, I couldn't process your request.",
-      );
+      setLast({
+        role: "assistant",
+        content:
+          error instanceof MissingKeyError
+            ? MISSING_KEY_MESSAGE
+            : error instanceof Error
+              ? error.message
+              : "Sorry, I couldn't process your request.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +82,10 @@ export default function AIChat({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
           <div className="icon-box w-8 h-8 text-sm">✨</div>
-          <h3 className="font-semibold text-slate-900 tracking-tight">{title}</h3>
+          <div>
+            <h3 className="font-semibold text-slate-900 tracking-tight leading-tight">{title}</h3>
+            <p className="text-[11px] text-slate-400">Powered by Claude · {MODEL}</p>
+          </div>
         </div>
         <StatusBar status={isLoading ? "thinking" : "idle"} />
       </div>
@@ -106,11 +109,11 @@ export default function AIChat({
         </div>
       )}
 
-      <div className="h-52 overflow-y-auto mb-4 space-y-3 rounded-xl p-4 bg-slate-50/80 border border-slate-100">
+      <div className="max-h-72 min-h-52 overflow-y-auto mb-4 space-y-3 rounded-xl p-4 bg-slate-50/80 border border-slate-100">
         {messages.length === 0 && (
           <p className="text-sm text-slate-400 text-center py-10">
             Ask me anything about {title.replace(/ AI$/, "").toLowerCase()} — recommendations,
-            trends, or what&apos;s worth your time.
+            trends, or what&apos;s worth your time. I can search the web and cite sources.
           </p>
         )}
         {messages.map((msg, i) => (
@@ -118,16 +121,20 @@ export default function AIChat({
             key={i}
             className={`text-sm ${msg.role === "user" ? "text-right" : "text-left"}`}
           >
-            <span
-              className={`inline-block px-3.5 py-2.5 rounded-2xl max-w-[85%] leading-relaxed ${
+            <div
+              className={`inline-block px-3.5 py-2.5 rounded-2xl max-w-[90%] text-left leading-relaxed ${
                 msg.role === "user"
                   ? "bg-white text-hub-teal shadow-sm shadow-lime-900/10 ring-1 ring-lime-200/60 rounded-br-md font-medium"
-                  : "bg-white/95 border border-white text-slate-700 shadow-sm rounded-bl-md"
+                  : "bg-white/95 border border-white text-slate-700 shadow-sm rounded-bl-md w-full max-w-full"
               }`}
             >
-              {msg.content ||
-                (isLoading && i === messages.length - 1 ? "..." : "")}
-            </span>
+              <span className="whitespace-pre-wrap">
+                {msg.content || (isLoading && i === messages.length - 1 ? "Searching…" : "")}
+              </span>
+              {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                <SourceLinks sources={msg.sources} />
+              )}
+            </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
@@ -162,22 +169,18 @@ export default function AIChat({
 
 export function useAIResponse() {
   const [response, setResponse] = useState("");
+  const [sources, setSources] = useState<Source[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const ask = async (prompt: string) => {
     setIsLoading(true);
     setResponse("");
+    setSources([]);
 
     try {
-      let text = "";
-      await streamAssistant(prompt, {
-        useWebSearch: true,
-        onText: (delta) => {
-          text += delta;
-          setResponse(text);
-        },
-      });
-      if (!text) setResponse("(No response.)");
+      const result = await askAssistant(prompt, { useWebSearch: true });
+      setResponse(result.text);
+      setSources(result.sources);
     } catch (error) {
       setResponse(
         error instanceof MissingKeyError
@@ -191,5 +194,5 @@ export function useAIResponse() {
     }
   };
 
-  return { response, isLoading, ask };
+  return { response, sources, isLoading, ask };
 }

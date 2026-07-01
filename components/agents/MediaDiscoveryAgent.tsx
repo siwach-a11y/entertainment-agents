@@ -23,6 +23,7 @@ import {
 import TabSwitcher from "@/components/ui/TabSwitcher";
 import AIChat, { useAIResponse } from "@/components/ui/AIChat";
 import StatusBar from "@/components/ui/StatusBar";
+import SourceLinks from "@/components/ui/SourceLinks";
 
 const sortOptions: { id: SortMode; label: string }[] = [
   { id: "match", label: "Best match" },
@@ -155,7 +156,7 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
   const [sort, setSort] = useState<SortMode>("match");
   const [saved, setSaved] = useState<Set<string>>(new Set());
 
-  const { response, isLoading, ask } = useAIResponse();
+  const { response, sources, isLoading, ask } = useAIResponse();
 
   const query: DiscoveryQuery = useMemo(
     () => ({ genres, platforms, region, mood, text, sort }),
@@ -370,6 +371,7 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
         <div className="glass-panel p-5">
           <StatusBar status={isLoading ? "thinking" : "idle"} />
           <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap mt-2">{response}</p>
+          {sources.length > 0 && <SourceLinks sources={sources} />}
         </div>
       )}
 
