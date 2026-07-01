@@ -10,6 +10,10 @@
 /.next/
 /out/
 
+# portable static site bundles
+/entertainment-agents-static/
+entertainment-agents-static.zip
+
 # production
 /build
 
