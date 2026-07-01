@@ -14,6 +14,8 @@ interface ResultCardProps {
   actionLabel?: string;
   onAction?: () => void;
   allowActionWhenSoldOut?: boolean;
+  /** Optional thumbnail image; clicking it triggers onAction (e.g. play video). */
+  imageUrl?: string;
 }
 
 const availabilityStyles: Record<
@@ -49,11 +51,36 @@ export default function ResultCard({
   actionLabel = "Book",
   onAction,
   allowActionWhenSoldOut = false,
+  imageUrl,
 }: ResultCardProps) {
   const pill = availabilityStyles[availability];
 
   return (
     <div className="glass-card p-4 group">
+      {imageUrl && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="relative block w-full mb-3.5 overflow-hidden rounded-xl bg-slate-900/90"
+          style={{ aspectRatio: "16 / 9" }}
+          aria-label={`Play ${title}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageUrl}
+            alt={title}
+            className="absolute inset-0 h-full w-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-hub-blue shadow-lg text-lg">
+              ▶
+            </span>
+          </span>
+        </button>
+      )}
       <div className="flex items-start gap-3.5">
         <div className="icon-box w-11 h-11 text-lg shrink-0">{icon}</div>
         <div className="flex-1 min-w-0">

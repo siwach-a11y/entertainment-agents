@@ -34,6 +34,8 @@ import {
   type LiveCandidate,
 } from "@/lib/apify";
 import ApifyTokenManager from "@/components/ui/ApifyTokenManager";
+import VideoModal from "@/components/ui/VideoModal";
+import { getEmbed } from "@/lib/videoEmbed";
 import TabSwitcher from "@/components/ui/TabSwitcher";
 import ResultCard from "@/components/ui/ResultCard";
 import AIChat, { useAIResponse } from "@/components/ui/AIChat";
@@ -86,6 +88,7 @@ export default function ViralPipelineAgent() {
   const [runBusy, setRunBusy] = useState(false);
   const [lastRun, setLastRun] = useState<DiscoveryRunStats | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState<TrendingVideo | null>(null);
 
   const [platformFilter, setPlatformFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -472,8 +475,8 @@ export default function ViralPipelineAgent() {
                             Approve
                           </button>
                         )}
-                        <button type="button" className="btn-secondary !py-1 !px-2 !text-xs" onClick={() => window.open(v.videoUrl, "_blank")}>
-                          Open
+                        <button type="button" className="btn-secondary !py-1 !px-2 !text-xs" onClick={() => setPlaying(v)}>
+                          ▶ Watch
                         </button>
                       </div>
                     </td>
@@ -510,13 +513,14 @@ export default function ViralPipelineAgent() {
               <ResultCard
                 key={v.id}
                 icon={v.thumbnailEmoji}
+                imageUrl={getEmbed(v.videoUrl).thumbnail}
                 title={v.title}
                 subtitle={`${v.creator} · ${getPlatformLabel(v.platform)} · ${PIPELINE_STATUS_LABEL[v.status]}`}
                 price={formatViews(v.views)}
                 meta={[v.category, v.region, formatGrowth(v.growthPercent), v.duration]}
                 availability={v.availability}
-                actionLabel="Watch"
-                onAction={() => window.open(v.videoUrl, "_blank")}
+                actionLabel="▶ Watch"
+                onAction={() => setPlaying(v)}
                 allowActionWhenSoldOut
                 onDetails={() =>
                   ask(`Why is "${v.title}" trending? ${formatViews(v.views)}, ${formatGrowth(v.growthPercent)}`)
@@ -533,13 +537,14 @@ export default function ViralPipelineAgent() {
             <ResultCard
               key={v.id}
               icon={v.thumbnailEmoji}
+              imageUrl={getEmbed(v.videoUrl).thumbnail}
               title={v.title}
               subtitle={`${v.creator} · Published`}
               price={formatViews(v.views)}
               meta={v.caption ? [v.caption.slice(0, 60) + "…"] : []}
               availability="available"
-              actionLabel="View"
-              onAction={() => window.open(v.videoUrl, "_blank")}
+              actionLabel="▶ Watch"
+              onAction={() => setPlaying(v)}
               allowActionWhenSoldOut
             />
           ))}
@@ -567,6 +572,15 @@ export default function ViralPipelineAgent() {
         ]}
         systemContext="You are a viral video discovery expert for AgentHub, inspired by Fando AI's sports content pipeline. Explain discovery modes (whitelist, internet, specific source), queue workflow (discover → approve → process caption → publish), short-form rules (≤29s, official sources, URL dedupe), and platform-specific trends. Be concise."
       />
+
+      {playing && (
+        <VideoModal
+          title={playing.title}
+          url={playing.videoUrl}
+          subtitle={`${playing.creator} · ${getPlatformLabel(playing.platform)}`}
+          onClose={() => setPlaying(null)}
+        />
+      )}
     </div>
   );
 }
