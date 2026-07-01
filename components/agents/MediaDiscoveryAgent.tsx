@@ -24,6 +24,7 @@ import TabSwitcher from "@/components/ui/TabSwitcher";
 import AIChat, { useAIResponse } from "@/components/ui/AIChat";
 import StatusBar from "@/components/ui/StatusBar";
 import SourceLinks from "@/components/ui/SourceLinks";
+import WebSearchLinks from "@/components/ui/WebSearchLinks";
 
 const sortOptions: { id: SortMode; label: string }[] = [
   { id: "match", label: "Best match" },
@@ -347,6 +348,8 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
               />
             </div>
           </div>
+
+          <WebSearchLinks domain={domain} noun={config.nounPlural} />
 
           {renderGrid(
             result.items,
