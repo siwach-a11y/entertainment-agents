@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "build:html": "BUILD_HTML=1 next build",
+    "build:pages": "BUILD_HTML=1 GITHUB_PAGES=1 next build",
     "start": "next start",
     "lint": "next lint"
   },
