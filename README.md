@@ -4,7 +4,11 @@ An AI-powered entertainment **discovery marketplace** built with Next.js. Five a
 
 **Live demo:** https://siwach-a11y.github.io/entertainment-agents/
 
-> The live demo is a static export, so the AI chat (which needs the server API route) is inactive there. Run locally with an `ANTHROPIC_API_KEY` for the full experience — browsing, filtering, ranking, and watchlists work everywhere.
+> Browsing, filtering, ranking, and watchlists work everywhere with no setup. The **AI features** (chat, per-item "Details", agent recommender) connect to Anthropic one of two ways:
+> - **On the live Pages demo:** paste your own Anthropic API key in the "Connect AI" panel. It's stored only in your browser (localStorage) and sent directly to Anthropic via the `anthropic-dangerous-direct-browser-access` mechanism — never uploaded here. Suited to a personal/dev demo, since the key is used client-side.
+> - **Local dev / a server deploy (e.g. Vercel):** set `ANTHROPIC_API_KEY` server-side and the app routes AI through `/api/chat` — the key stays on the server. This path takes over automatically when a backend is present.
+>
+> AI uses the `claude-opus-4-8` model.
 
 | Agent | Finds |
 |-------|-------|

@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { agents } from "@/lib/data/agents";
+import { MissingKeyError, streamAssistant } from "@/lib/aiClient";
+import ApiKeyManager from "@/components/ui/ApiKeyManager";
 
 export default function MarketplaceChat() {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [needKey, setNeedKey] = useState(false);
 
   const agentList = agents
     .map(
@@ -34,28 +37,23 @@ User query: ${input.trim()}
 Recommend 1-3 agents that best match their needs. Explain why each is a good fit. Be concise and helpful.`;
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, useWebSearch: false }),
-      });
-
-      if (!res.ok) throw new Error("Failed");
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
       let text = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          text += decoder.decode(value, { stream: true });
+      await streamAssistant(prompt, {
+        onText: (delta) => {
+          text += delta;
           setResponse(text);
-        }
+        },
+      });
+      if (!text) setResponse("(No response.)");
+    } catch (error) {
+      if (error instanceof MissingKeyError) {
+        setNeedKey(true);
+        setResponse("Add your Anthropic API key below to enable AI recommendations.");
+      } else {
+        setResponse(
+          error instanceof Error ? error.message : "Unable to get recommendations.",
+        );
       }
-    } catch {
-      setResponse("Unable to get recommendations. Please check your API key.");
     } finally {
       setIsLoading(false);
     }
@@ -66,13 +64,14 @@ Recommend 1-3 agents that best match their needs. Explain why each is a good fit
       <div className="max-w-3xl mx-auto pointer-events-auto">
         <div className="glass-dock rounded-2xl overflow-hidden">
           {expanded && response && (
-            <div className="px-5 pt-4 pb-2 max-h-36 overflow-y-auto border-b border-slate-100">
+            <div className="px-5 pt-4 pb-2 max-h-48 overflow-y-auto border-b border-slate-100 space-y-3">
               <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
                 {response}
                 {isLoading && (
                   <span className="inline-block w-1.5 h-4 ml-0.5 bg-hub-blue animate-pulse-soft align-middle rounded-sm" />
                 )}
               </p>
+              {needKey && <ApiKeyManager compact onChange={(has) => setNeedKey(!has)} />}
             </div>
           )}
           <form onSubmit={handleSubmit} className="flex items-center gap-3 p-3">

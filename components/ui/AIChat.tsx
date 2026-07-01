@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import StatusBar from "./StatusBar";
+import ApiKeyManager from "./ApiKeyManager";
+import { MissingKeyError, streamAssistant } from "@/lib/aiClient";
 
 interface Message {
   role: "user" | "assistant";
@@ -14,6 +16,9 @@ interface AIChatProps {
   quickAsks?: string[];
   systemContext?: string;
 }
+
+const MISSING_KEY_MESSAGE =
+  "Add your Anthropic API key above to enable AI on this demo — it stays in your browser.";
 
 export default function AIChat({
   title = "AI Assistant",
@@ -34,7 +39,7 @@ export default function AIChat({
     if (!text.trim() || isLoading) return;
 
     const userMessage: Message = { role: "user", content: text.trim() };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage, { role: "assistant", content: "" }]);
     setInput("");
     setIsLoading(true);
 
@@ -42,45 +47,31 @@ export default function AIChat({
       ? `${systemContext}\n\nUser question: ${text.trim()}`
       : text.trim();
 
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, useWebSearch: true }),
+    const setLast = (content: string) =>
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content };
+        return updated;
       });
 
-      if (!res.ok) throw new Error("Failed to get response");
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
+    try {
       let assistantText = "";
-
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          assistantText += decoder.decode(value, { stream: true });
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              role: "assistant",
-              content: assistantText,
-            };
-            return updated;
-          });
-        }
-      }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "Sorry, I couldn't process your request. Please check that ANTHROPIC_API_KEY is set in .env.local.",
+      await streamAssistant(prompt, {
+        useWebSearch: true,
+        onText: (delta) => {
+          assistantText += delta;
+          setLast(assistantText);
         },
-      ]);
+      });
+      if (!assistantText) setLast("(No response.)");
+    } catch (error) {
+      setLast(
+        error instanceof MissingKeyError
+          ? MISSING_KEY_MESSAGE
+          : error instanceof Error
+            ? error.message
+            : "Sorry, I couldn't process your request.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -94,6 +85,10 @@ export default function AIChat({
           <h3 className="font-semibold text-slate-900 tracking-tight">{title}</h3>
         </div>
         <StatusBar status={isLoading ? "thinking" : "idle"} />
+      </div>
+
+      <div className="mb-4">
+        <ApiKeyManager />
       </div>
 
       {quickAsks.length > 0 && (
@@ -114,7 +109,8 @@ export default function AIChat({
       <div className="h-52 overflow-y-auto mb-4 space-y-3 rounded-xl p-4 bg-slate-50/80 border border-slate-100">
         {messages.length === 0 && (
           <p className="text-sm text-slate-400 text-center py-10">
-            Ask me anything — I can search the web for up-to-date info.
+            Ask me anything about {title.replace(/ AI$/, "").toLowerCase()} — recommendations,
+            trends, or what&apos;s worth your time.
           </p>
         )}
         {messages.map((msg, i) => (
@@ -173,28 +169,23 @@ export function useAIResponse() {
     setResponse("");
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, useWebSearch: true }),
-      });
-
-      if (!res.ok) throw new Error("Failed");
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
       let text = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          text += decoder.decode(value, { stream: true });
+      await streamAssistant(prompt, {
+        useWebSearch: true,
+        onText: (delta) => {
+          text += delta;
           setResponse(text);
-        }
-      }
-    } catch {
-      setResponse("Unable to get AI response. Check your API key.");
+        },
+      });
+      if (!text) setResponse("(No response.)");
+    } catch (error) {
+      setResponse(
+        error instanceof MissingKeyError
+          ? MISSING_KEY_MESSAGE
+          : error instanceof Error
+            ? error.message
+            : "Unable to get AI response.",
+      );
     } finally {
       setIsLoading(false);
     }
