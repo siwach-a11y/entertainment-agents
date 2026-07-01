@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { getAgentById } from "@/lib/data/agents";
 import MediaDiscoveryAgent from "@/components/agents/MediaDiscoveryAgent";
+import ViralPipelineAgent from "@/components/agents/ViralPipelineAgent";
 import { type ComponentType } from "react";
 
 const agentComponents: Record<string, ComponentType> = {
   "micro-drama-discovery": () => <MediaDiscoveryAgent domain="micro-drama" />,
-  "viral-video-discovery": () => <MediaDiscoveryAgent domain="viral-video" />,
+  "viral-video-discovery": ViralPipelineAgent,
   "movie-discovery": () => <MediaDiscoveryAgent domain="movie" />,
   "series-discovery": () => <MediaDiscoveryAgent domain="series" />,
   "music-discovery": () => <MediaDiscoveryAgent domain="music" />,
