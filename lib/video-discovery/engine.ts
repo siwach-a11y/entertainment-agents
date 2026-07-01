@@ -18,9 +18,11 @@ export interface DiscoveryRunInput {
   youtubeSource?: string;
   instagramSource?: string;
   officialOnly: boolean;
+  /** Live candidates (e.g. from Apify) merged into the pool for internet mode. */
+  liveCandidates?: DiscoveryCandidate[];
 }
 
-type DiscoveryCandidate = Omit<TrendingVideo, "id" | "urlNormalized" | "status">;
+export type DiscoveryCandidate = Omit<TrendingVideo, "id" | "urlNormalized" | "status">;
 
 const DISCOVERY_POOL: DiscoveryCandidate[] = [
   {
@@ -261,9 +263,19 @@ function matchesSource(
 }
 
 function buildCandidates(input: DiscoveryRunInput, runId: number): TrendingVideo[] {
-  const pool = input.mode === "internet" ? [...DISCOVERY_POOL, ...INTERNET_TEMPLATES] : DISCOVERY_POOL;
+  const live = input.mode === "internet" ? (input.liveCandidates ?? []) : [];
+  const synthetic = input.mode === "internet" ? [...DISCOVERY_POOL, ...INTERNET_TEMPLATES] : DISCOVERY_POOL;
 
-  return pool.map((item, index) => {
+  // Live candidates carry real URLs — no per-run suffix, so URL dedupe works
+  // across runs; keep their own publishedAt.
+  const liveVideos: TrendingVideo[] = live.map((item, index) => ({
+    ...item,
+    id: `live-${runId}-${index}`,
+    urlNormalized: normalizeVideoUrl(item.videoUrl),
+    status: "discovered" as const,
+  }));
+
+  const syntheticVideos: TrendingVideo[] = synthetic.map((item, index) => {
     const suffix = input.mode === "internet" ? `/run-${runId}` : "";
     const videoUrl = `${item.videoUrl}${suffix}`;
     return {
@@ -275,6 +287,9 @@ function buildCandidates(input: DiscoveryRunInput, runId: number): TrendingVideo
       publishedAt: new Date().toISOString(),
     };
   });
+
+  // Live (real) candidates first so they win the per-category insert limits.
+  return [...liveVideos, ...syntheticVideos];
 }
 
 export function runDiscovery(

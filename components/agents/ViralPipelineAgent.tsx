@@ -13,6 +13,7 @@ import {
   type DiscoverySourceMode,
   type DiscoveryRunStats,
   type TrendingVideo,
+  type VideoCategory,
   type VideoPlatform,
   type VideoPipelineStatus,
   videoCategories,
@@ -27,6 +28,12 @@ import {
   rejectVideo,
   runDiscovery,
 } from "@/lib/video-discovery/engine";
+import {
+  fetchInstagramReels,
+  hasApifyToken,
+  type LiveCandidate,
+} from "@/lib/apify";
+import ApifyTokenManager from "@/components/ui/ApifyTokenManager";
 import TabSwitcher from "@/components/ui/TabSwitcher";
 import ResultCard from "@/components/ui/ResultCard";
 import AIChat, { useAIResponse } from "@/components/ui/AIChat";
@@ -78,6 +85,7 @@ export default function ViralPipelineAgent() {
   const [officialOnly, setOfficialOnly] = useState(true);
   const [runBusy, setRunBusy] = useState(false);
   const [lastRun, setLastRun] = useState<DiscoveryRunStats | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
 
   const [platformFilter, setPlatformFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -136,7 +144,29 @@ export default function ViralPipelineAgent() {
 
   const handleDiscoveryRun = useCallback(async () => {
     setRunBusy(true);
-    await new Promise((r) => setTimeout(r, 600));
+    setLiveError(null);
+
+    // Internet mode with an Apify token → pull real Instagram reels live.
+    let liveCandidates: LiveCandidate[] = [];
+    if (sourceMode === "internet" && hasApifyToken()) {
+      const handles = [
+        ...(officialSources.map((s) => s.instagram).filter(Boolean) as string[]),
+        ...(instagramSource.trim() ? [instagramSource.trim()] : []),
+      ];
+      try {
+        liveCandidates = await fetchInstagramReels({
+          handles,
+          limitPerProfile: parseInt(limitPerCategory, 10) || 3,
+          category: (category === "All" ? "Lifestyle" : category) as VideoCategory,
+          region,
+        });
+      } catch (err) {
+        setLiveError(err instanceof Error ? err.message : "Apify fetch failed.");
+      }
+    } else {
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
     let stats: DiscoveryRunStats | null = null;
     setVideos((prev) => {
       const result = runDiscovery(prev, {
@@ -148,6 +178,7 @@ export default function ViralPipelineAgent() {
         youtubeSource: youtubeSource || undefined,
         instagramSource: instagramSource || undefined,
         officialOnly,
+        liveCandidates,
       });
       stats = result.stats;
       return result.videos.map((v) =>
@@ -316,6 +347,23 @@ export default function ViralPipelineAgent() {
                   placeholder="Instagram @profile"
                   className="input-modern"
                 />
+              </div>
+            )}
+
+            {sourceMode === "internet" && (
+              <div className="space-y-2">
+                <ApifyTokenManager />
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  With an Apify token, this pulls <strong>real Instagram reels</strong> from the
+                  official profiles via the <code>apify/instagram-scraper</code> actor (uses your
+                  Apify credits). Without a token, it runs on sample data. Add a specific
+                  Instagram <em>@profile</em> above to include it.
+                </p>
+                {liveError && (
+                  <p className="text-xs text-hub-coral bg-hub-coral-light/60 rounded-lg px-3 py-2">
+                    {liveError}
+                  </p>
+                )}
               </div>
             )}
 
