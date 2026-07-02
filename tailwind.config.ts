@@ -12,11 +12,11 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
         hub: {
-          // Cinematic dark palette — gold accent + dark-friendly semantics.
-          blue: "#EBB454",
-          "blue-light": "#2E2712",
-          teal: "#EBB454",
-          "teal-light": "#2E2712",
+          // Cinematic dark palette — violet accent + dark-friendly semantics.
+          blue: "#A78BFA",
+          "blue-light": "#221A3A",
+          teal: "#A78BFA",
+          "teal-light": "#221A3A",
           coral: "#F2766B",
           "coral-light": "#351A18",
           amber: "#E7A93C",
