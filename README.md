@@ -8,7 +8,7 @@ An AI-powered entertainment **discovery marketplace** built with Next.js. Five a
 > - **On the live Pages demo:** paste your own Anthropic API key in the "Connect AI" panel. It's stored only in your browser (localStorage) and sent directly to Anthropic via the `anthropic-dangerous-direct-browser-access` mechanism — never uploaded here. Suited to a personal/dev demo, since the key is used client-side.
 > - **Local dev / a server deploy (e.g. Vercel):** set `ANTHROPIC_API_KEY` server-side and the app routes AI through `/api/chat` — the key stays on the server. This path takes over automatically when a backend is present.
 >
-> AI uses the `claude-opus-4-8` model.
+> AI uses the `claude-opus-4-5` model.
 
 | Agent | Finds |
 |-------|-------|

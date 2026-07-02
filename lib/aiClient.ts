@@ -12,7 +12,7 @@
  */
 
 const KEY_STORAGE = "entertainment_agents_anthropic_key";
-export const MODEL = "claude-opus-4-8";
+export const MODEL = "claude-opus-4-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
 
