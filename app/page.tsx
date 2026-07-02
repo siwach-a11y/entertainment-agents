@@ -78,17 +78,29 @@ export default function Home() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-12">
-        <section className="animate-slide-up text-center sm:text-left pt-4 pb-2">
-          <p className="section-title mb-3">AI-powered entertainment discovery</p>
-          <h2 className="heading-lg text-balance max-w-2xl">
+        <section className="hero-glow animate-slide-up relative overflow-hidden rounded-3xl border border-white/10 px-6 sm:px-10 py-12 sm:py-16 text-center sm:text-left">
+          <p className="section-title mb-3 inline-flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-hub-teal animate-pulse" />
+            AI-powered entertainment discovery
+          </p>
+          <h2 className="text-4xl sm:text-6xl font-black tracking-tight leading-[1.05] text-balance max-w-3xl">
             Find your next{" "}
             <span className="gradient-text">watch or listen</span>
           </h2>
-          <p className="mt-3 text-slate-500 text-base max-w-xl leading-relaxed">
-            Five discovery agents for micro dramas, viral videos, movies, series,
-            and music. Search by mood, genre, and platform, then let AI recommend
-            what&apos;s worth your time.
+          <p className="mt-4 text-slate-400 text-base sm:text-lg max-w-xl leading-relaxed mx-auto sm:mx-0">
+            Micro dramas, viral videos, movies, series, and music — discover it by mood
+            and watch it right here.
           </p>
+          <div className="mt-6 flex flex-wrap justify-center sm:justify-start gap-2">
+            {["🎭 Micro dramas", "🔥 Viral videos", "🎬 Movies", "📺 Series", "🎧 Music"].map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-300 backdrop-blur-sm"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
         </section>
 
         <section className="animate-fade-in" style={{ animationDelay: "0.1s" }}>

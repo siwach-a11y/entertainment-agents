@@ -10,25 +10,48 @@ const badgeStyles: Record<Badge, string> = {
   Free: "bg-hub-green-light/80 text-hub-green border-hub-green/20",
 };
 
+/** Distinct neon accent per agent so the grid feels alive. */
+const ACCENTS: Record<string, { from: string; to: string; glow: string }> = {
+  "micro-drama-discovery": { from: "#FB7185", to: "#E11D48", glow: "rgba(244,63,94,0.45)" },
+  "viral-video-discovery": { from: "#FB923C", to: "#EF4444", glow: "rgba(249,115,22,0.45)" },
+  "movie-discovery": { from: "#F5C662", to: "#E0A82E", glow: "rgba(224,168,46,0.45)" },
+  "series-discovery": { from: "#818CF8", to: "#6366F1", glow: "rgba(99,102,241,0.45)" },
+  "music-discovery": { from: "#E879F9", to: "#A855F7", glow: "rgba(168,85,247,0.5)" },
+};
+const DEFAULT_ACCENT = { from: "#F5C662", to: "#E0A82E", glow: "rgba(224,168,46,0.4)" };
+
 interface AgentCardProps {
   agent: Agent;
   featured?: boolean;
 }
 
-export default function AgentCard({ agent, featured }: AgentCardProps) {
+export default function AgentCard({ agent }: AgentCardProps) {
+  const a = ACCENTS[agent.id] ?? DEFAULT_ACCENT;
+
   return (
-    <Link href={`/agents/${agent.id}`} className="group block h-full">
+    <Link href={`/agents/${agent.id}`} className="group block h-full animate-fade-in">
       <article
-        className={`glass-card p-5 h-full flex flex-col ${
-          featured ? "ring-1 ring-hub-blue/15" : ""
-        }`}
+        className="relative glass-card p-5 h-full flex flex-col overflow-hidden transition-shadow duration-300 hover:shadow-[0_18px_55px_-14px_var(--g)]"
+        style={{ ["--g" as string]: a.glow }}
       >
+        {/* top accent bar */}
+        <span
+          className="absolute inset-x-0 top-0 h-[3px] opacity-80"
+          style={{ background: `linear-gradient(90deg, ${a.from}, ${a.to})` }}
+        />
+
         <div className="flex items-start gap-3.5 mb-4">
-          <div className="icon-box w-12 h-12 text-2xl shrink-0 group-hover:scale-105 transition-transform duration-300">
-            {agent.icon}
+          <div
+            className="w-12 h-12 rounded-2xl shrink-0 grid place-items-center text-2xl group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-300"
+            style={{
+              backgroundImage: `linear-gradient(145deg, ${a.from}, ${a.to})`,
+              boxShadow: `0 10px 26px -10px ${a.glow}`,
+            }}
+          >
+            <span className="drop-shadow-sm">{agent.icon}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-slate-900 truncate tracking-tight group-hover:text-hub-blue transition-colors">
+            <h3 className="font-semibold text-slate-900 truncate tracking-tight">
               {agent.name}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">by {agent.author}</p>
@@ -37,10 +60,7 @@ export default function AgentCard({ agent, featured }: AgentCardProps) {
 
         <div className="flex flex-wrap gap-1.5 mb-3">
           {agent.badges.map((badge) => (
-            <span
-              key={badge}
-              className={`badge-pill ${badgeStyles[badge]}`}
-            >
+            <span key={badge} className={`badge-pill ${badgeStyles[badge]}`}>
               {badge}
             </span>
           ))}
