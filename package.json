@@ -7,6 +7,8 @@
     "build": "next build",
     "build:html": "BUILD_HTML=1 next build",
     "build:pages": "BUILD_HTML=1 GITHUB_PAGES=1 next build",
+    "deploy:firebase": "npm run build:html && firebase deploy --only hosting",
+    "deploy:gcs": "npm run build:html && gsutil -m rsync -r -d out gs://agent-hub-entertainment-agents",
     "start": "next start",
     "lint": "next lint"
   },
