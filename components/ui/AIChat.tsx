@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import StatusBar from "./StatusBar";
 import ApiKeyManager from "./ApiKeyManager";
 import SourceLinks from "./SourceLinks";
-import { askAssistant, MissingKeyError, MODEL, type Source } from "@/lib/aiClient";
+import { askAssistant, hasApiKey, MissingKeyError, MODEL, type Source } from "@/lib/aiClient";
 
 interface Message {
   role: "user" | "assistant";
@@ -31,6 +30,7 @@ export default function AIChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showConnect, setShowConnect] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +63,7 @@ export default function AIChat({
       const result = await askAssistant(prompt, { useWebSearch: true });
       setLast({ role: "assistant", content: result.text, sources: result.sources });
     } catch (error) {
+      if (error instanceof MissingKeyError) setShowConnect(true);
       setLast({
         role: "assistant",
         content:
@@ -79,20 +80,28 @@ export default function AIChat({
 
   return (
     <div className="glass-panel p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="icon-box w-8 h-8 text-sm">✨</div>
-          <div>
-            <h3 className="font-semibold text-slate-900 tracking-tight leading-tight">{title}</h3>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="icon-box w-8 h-8 text-sm shrink-0">✨</div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-slate-900 tracking-tight leading-tight truncate">{title}</h3>
             <p className="text-[11px] text-slate-400">Powered by Claude · {MODEL}</p>
           </div>
         </div>
-        <StatusBar status={isLoading ? "thinking" : "idle"} />
+        <button
+          type="button"
+          onClick={() => setShowConnect((v) => !v)}
+          className="text-xs font-medium text-slate-400 hover:text-hub-teal transition-colors shrink-0 inline-flex items-center gap-1"
+        >
+          🔑 {hasApiKey() ? "AI connected" : "Connect AI"}
+        </button>
       </div>
 
-      <div className="mb-4">
-        <ApiKeyManager />
-      </div>
+      {showConnect && (
+        <div className="mb-4">
+          <ApiKeyManager onChange={(has) => has && setShowConnect(false)} />
+        </div>
+      )}
 
       {quickAsks.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">

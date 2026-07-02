@@ -70,7 +70,8 @@ function statusPill(status: VideoPipelineStatus): string {
 }
 
 export default function ViralPipelineAgent() {
-  const [mainTab, setMainTab] = useState("discover");
+  const [mainTab, setMainTab] = useState("trending");
+  const [creatorMode, setCreatorMode] = useState(false);
   const [browseTab, setBrowseTab] = useState("all");
   const [videos, setVideos] = useState<TrendingVideo[]>(() => [...seedTrendingVideos]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -229,43 +230,74 @@ export default function ViralPipelineAgent() {
     setMainTab("published");
   };
 
+  const tabs = creatorMode
+    ? mainTabs
+    : mainTabs.filter((t) => t.id === "trending" || t.id === "published");
+
   return (
     <div className="space-y-6">
-      <div className="rounded-xl p-3.5 text-sm text-hub-teal bg-white/90 border border-white shadow-sm">
-        Inspired by{" "}
-        <a
-          href="https://github.com/The-Binary-Holdings/AI-Automation/tree/main/fando-ai-agent"
-          target="_blank"
-          rel="noreferrer"
-          className="underline font-medium"
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-slate-400">
+          {creatorMode
+            ? "Creator tools — discover, review, and publish clips."
+            : "Browse and watch what’s trending right now."}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !creatorMode;
+            setCreatorMode(next);
+            if (!next && (mainTab === "discover" || mainTab === "queue")) setMainTab("trending");
+          }}
+          className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors shrink-0 ${
+            creatorMode
+              ? "bg-hub-teal text-white border-hub-teal"
+              : "bg-white text-slate-500 border-slate-200 hover:text-hub-teal"
+          }`}
         >
-          Fando AI
-        </a>
-        : Discovery → Queue → Approve → Process → Publish. Short-form clips only (≤29s), official
-        sources, URL dedupe.
+          {creatorMode ? "✓ Creator mode" : "⚙ Creator mode"}
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {(
-          [
-            ["Discovered", health.discovered + health.pendingReview],
-            ["Approved", health.approved],
-            ["Processing", health.processing],
-            ["Ready", health.ready],
-            ["Published", health.published],
-            ["Rejected", health.rejected],
-            ["Failed", health.failed],
-            ["Total", health.total],
-          ] as const
-        ).map(([label, val]) => (
-          <div key={label} className="glass-panel p-2 text-center">
-            <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
-            <p className="text-lg font-bold text-slate-900">{val}</p>
+      {creatorMode && (
+        <>
+          <div className="rounded-xl p-3.5 text-sm text-hub-teal bg-white/90 border border-white shadow-sm">
+            Inspired by{" "}
+            <a
+              href="https://github.com/The-Binary-Holdings/AI-Automation/tree/main/fando-ai-agent"
+              target="_blank"
+              rel="noreferrer"
+              className="underline font-medium"
+            >
+              Fando AI
+            </a>
+            : Discovery → Queue → Approve → Process → Publish. Short-form clips only (≤29s), official
+            sources, URL dedupe.
           </div>
-        ))}
-      </div>
 
-      <TabSwitcher tabs={mainTabs} activeTab={mainTab} onChange={setMainTab} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {(
+              [
+                ["Discovered", health.discovered + health.pendingReview],
+                ["Approved", health.approved],
+                ["Processing", health.processing],
+                ["Ready", health.ready],
+                ["Published", health.published],
+                ["Rejected", health.rejected],
+                ["Failed", health.failed],
+                ["Total", health.total],
+              ] as const
+            ).map(([label, val]) => (
+              <div key={label} className="glass-panel p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
+                <p className="text-lg font-bold text-slate-900">{val}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <TabSwitcher tabs={tabs} activeTab={mainTab} onChange={setMainTab} />
 
       {mainTab === "discover" && (
         <div className="space-y-4">

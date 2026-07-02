@@ -156,6 +156,8 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
   const [text, setText] = useState("");
   const [sort, setSort] = useState<SortMode>("match");
   const [saved, setSaved] = useState<Set<string>>(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+  const [showWebSearch, setShowWebSearch] = useState(false);
 
   const { response, sources, isLoading, ask } = useAIResponse();
 
@@ -246,116 +248,132 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
       {tab === "discover" && (
         <div className="space-y-4">
           <div className="glass-panel p-5 space-y-4">
-            <div>
-              <p className="section-title mb-2">What are you in the mood for?</p>
-              <div className="flex flex-wrap gap-2">
-                {config.moods.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setMood((prev) => (prev?.id === m.id ? null : m))}
-                    className={`rounded-full px-3.5 py-1.5 text-sm font-medium border transition-colors ${
-                      mood?.id === m.id
-                        ? "bg-hub-teal text-white border-hub-teal"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={`Search ${config.nounPlural}, or describe what you want…`}
+              className="input-modern !py-3 text-base"
+            />
 
-            <div>
-              <p className="section-title mb-2">Genre</p>
-              <div className="flex flex-wrap gap-1.5">
-                {config.genres.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGenres((prev) => toggleInSet(prev, g))}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border ${
-                      genres.has(g)
-                        ? "bg-hub-blue text-white border-hub-blue"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="section-title mb-2">Platform</p>
-              <div className="flex flex-wrap gap-1.5">
-                {config.platforms.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPlatforms((prev) => toggleInSet(prev, p))}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border ${
-                      platforms.has(p)
-                        ? "bg-hub-teal text-white border-hub-teal"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <select value={region} onChange={(e) => setRegion(e.target.value)} className="input-modern">
-                {config.regions.map((r) => (
-                  <option key={r} value={r}>
-                    {r === "Global" ? "Any region" : r}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortMode)}
-                className="input-modern"
-              >
-                {sortOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Search titles, creators, keywords..."
-                className="input-modern"
-              />
+            <div className="flex flex-wrap gap-2">
+              {config.moods.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMood((prev) => (prev?.id === m.id ? null : m))}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium border transition-colors ${
+                    mood?.id === m.id
+                      ? "bg-hub-teal text-white border-hub-teal"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={askForPicks} className="btn-primary !py-2 !text-xs">
                 ✨ Ask AI for picks
               </button>
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                className="btn-secondary !py-2 !text-xs"
+              >
+                {showFilters ? "Hide filters" : "Filters"}
+                {hasFilters ? " •" : ""}
+              </button>
               {hasFilters && (
                 <button type="button" onClick={resetFilters} className="btn-secondary !py-2 !text-xs">
-                  Clear filters
+                  Clear
                 </button>
               )}
-              <StatusBar
-                status={isLoading ? "thinking" : "idle"}
-                message={`${result.stats.matched} of ${result.stats.scanned} ${config.nounPlural} match`}
-              />
+              <span className="text-xs text-slate-400">
+                {result.stats.matched} of {result.stats.scanned}
+              </span>
             </div>
-          </div>
 
-          <WebSearchLinks domain={domain} noun={config.nounPlural} />
+            {showFilters && (
+              <div className="space-y-4 border-t border-slate-200 pt-4">
+                <div>
+                  <p className="section-title mb-2">Genre</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {config.genres.map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGenres((prev) => toggleInSet(prev, g))}
+                        className={`rounded-full px-3 py-1 text-xs font-medium border ${
+                          genres.has(g)
+                            ? "bg-hub-blue text-white border-hub-blue"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="section-title mb-2">Platform</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {config.platforms.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPlatforms((prev) => toggleInSet(prev, p))}
+                        className={`rounded-full px-3 py-1 text-xs font-medium border ${
+                          platforms.has(p)
+                            ? "bg-hub-teal text-white border-hub-teal"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <select value={region} onChange={(e) => setRegion(e.target.value)} className="input-modern">
+                    {config.regions.map((r) => (
+                      <option key={r} value={r}>
+                        {r === "Global" ? "Any region" : r}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value as SortMode)}
+                    className="input-modern"
+                  >
+                    {sortOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
 
           {renderGrid(
             result.items,
             true,
             `No ${config.nounPlural} match those filters — try clearing a few.`,
           )}
+
+          <button
+            type="button"
+            onClick={() => setShowWebSearch((v) => !v)}
+            className="text-xs font-medium text-slate-400 hover:text-hub-teal transition-colors"
+          >
+            🔎 {showWebSearch ? "Hide web search" : "Search the web instead"}
+          </button>
+          {showWebSearch && <WebSearchLinks domain={domain} noun={config.nounPlural} />}
         </div>
       )}
 
