@@ -51,6 +51,60 @@ URL: `https://storage.googleapis.com/agent-hub-entertainment-agents/index.html`
 
 ---
 
+## Full hands-off (auto-deploy on every push)
+
+After this one-time setup, every `git push` to `main` builds and deploys itself —
+no manual steps.
+
+### Easiest — let Firebase wire it up (one command)
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase init hosting:github
+```
+
+Answer the prompts:
+- **Repository:** `siwach-a11y/entertainment-agents`
+- **Set up the workflow to run a build script before every deploy?** `Yes`
+- **Build script:** `npm ci && npm run build:html`
+- **Automatic deploy on merge to `main`?** `Yes`
+
+This creates a CI **service account**, stores it as a repo **secret**, and commits
+the GitHub Actions **workflow** — all automatically. Done. Every push now deploys to
+`https://agent-hub-501104.web.app`.
+
+### Manual equivalent (if you'd rather not use init)
+
+1. Create the service account + repo secret:
+   ```bash
+   gcloud iam service-accounts create gh-firebase-deployer \
+     --project agent-hub-501104 --display-name "GitHub Firebase Deployer"
+   gcloud projects add-iam-policy-binding agent-hub-501104 \
+     --member "serviceAccount:gh-firebase-deployer@agent-hub-501104.iam.gserviceaccount.com" \
+     --role roles/firebasehosting.admin
+   gcloud projects add-iam-policy-binding agent-hub-501104 \
+     --member "serviceAccount:gh-firebase-deployer@agent-hub-501104.iam.gserviceaccount.com" \
+     --role roles/serviceusage.serviceUsageConsumer
+   gcloud iam service-accounts keys create key.json \
+     --iam-account gh-firebase-deployer@agent-hub-501104.iam.gserviceaccount.com
+   gh secret set FIREBASE_SERVICE_ACCOUNT_AGENT_HUB_501104 < key.json \
+     --repo siwach-a11y/entertainment-agents
+   rm key.json                       # don't keep the key around
+   ```
+2. Put the workflow in place (it ships in `ci/`):
+   ```bash
+   mkdir -p .github/workflows
+   git mv ci/firebase-deploy.yml .github/workflows/firebase-deploy.yml
+   git commit -m "ci: firebase auto-deploy" && git push
+   ```
+   (Pushing under `.github/workflows/` needs a token with the `workflow` scope —
+   your normal `git`/GitHub login has it.)
+
+Either path → auto-deploy on every push, zero manual steps thereafter.
+
+---
+
 ## Option C — Cloud Run (server-side, no BYO key needed)
 
 Run the full Next.js server so `/api/chat` works with the key kept server-side —

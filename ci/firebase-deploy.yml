@@ -1,0 +1,38 @@
+# Auto-deploy to Firebase Hosting on every push to main.
+#
+# This file lives in ci/ because pushing to .github/workflows/ requires a
+# GitHub token with the "workflow" scope. Move it into place once:
+#     mkdir -p .github/workflows && git mv ci/firebase-deploy.yml .github/workflows/
+#     git commit -m "ci: firebase auto-deploy" && git push
+#
+# It needs one repo secret: FIREBASE_SERVICE_ACCOUNT_AGENT_HUB_501104
+# (a Firebase Hosting service-account JSON). The easiest way to create both the
+# secret AND this workflow automatically is `firebase init hosting:github` —
+# see DEPLOY-GCP.md.
+
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build:html
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_AGENT_HUB_501104 }}
+          channelId: live
+          projectId: agent-hub-501104
