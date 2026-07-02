@@ -1,17 +1,29 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   discoveryConfigs,
   formatGrowth,
   formatMetric,
   formatScore,
   resultUrl,
+  type DiscoveryItem,
   type EntertainmentDomain,
   type MoodOption,
   type RankedItem,
 } from "@/lib/data/discovery";
 import { getCatalogForDomain } from "@/lib/data/discoveryCatalog";
+import {
+  buildCollection,
+  collectionShareText,
+  collectionTitle,
+  collectionTotal,
+  deleteCollection,
+  getCollections,
+  planLabels,
+  saveCollection,
+  type Collection,
+} from "@/lib/collections";
 import {
   describeQuery,
   newItems,
@@ -159,6 +171,17 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
   const [showFilters, setShowFilters] = useState(false);
   const [showWebSearch, setShowWebSearch] = useState(false);
 
+  // "Plan" capability — build a collection (movie night / mix / binge / marathon).
+  const plan = planLabels[domain];
+  const [planMood, setPlanMood] = useState<MoodOption | null>(null);
+  const [planSize, setPlanSize] = useState(4);
+  const [built, setBuilt] = useState<DiscoveryItem[] | null>(null);
+  const [builtTitle, setBuiltTitle] = useState("");
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => setCollections(getCollections(domain)), [domain]);
+
   const { response, sources, isLoading, ask } = useAIResponse();
 
   const query: DiscoveryQuery = useMemo(
@@ -192,9 +215,57 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
 
   const askForPicks = () => ask(describeQuery(query, config));
 
+  // --- Plan / collection actions ---
+  const runBuild = () => {
+    const picks = buildCollection(catalog, planMood, planSize);
+    setBuilt(picks);
+    setBuiltTitle(collectionTitle(planMood, domain));
+    setCopied(false);
+  };
+
+  const saveBuilt = () => {
+    if (!built) return;
+    saveCollection({
+      id: `col-${Date.now()}`,
+      title: builtTitle,
+      itemIds: built.map((i) => i.id),
+      domain,
+      createdAt: Date.now(),
+    });
+    setCollections(getCollections(domain));
+  };
+
+  const copyBuilt = async () => {
+    if (!built) return;
+    const text = collectionShareText(builtTitle, collectionTotal(built, domain), built);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard blocked */
+    }
+  };
+
+  const openAll = () => {
+    built?.slice(0, 8).forEach((i) => window.open(resultUrl(i), "_blank", "noopener,noreferrer"));
+  };
+
+  const loadCollection = (c: Collection) => {
+    setBuilt(c.itemIds.map((id) => catalog.find((i) => i.id === id)).filter(Boolean) as DiscoveryItem[]);
+    setBuiltTitle(c.title);
+    setTab("plan");
+  };
+
+  const removeCollection = (id: string) => {
+    deleteCollection(domain, id);
+    setCollections(getCollections(domain));
+  };
+
   const tabs = [
     { id: "discover", label: "Discover" },
     { id: "trending", label: "Trending" },
+    { id: "plan", label: `${plan.emoji} ${plan.tab}` },
     { id: "new", label: "New" },
     { id: "watchlist", label: `${config.watchlistLabel} (${saved.size})` },
   ];
@@ -378,6 +449,106 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
       )}
 
       {tab === "trending" && renderGrid(trending, false, "Nothing trending right now.")}
+
+      {tab === "plan" && (
+        <div className="space-y-4">
+          <div className="glass-panel p-5 space-y-4">
+            <div>
+              <p className="section-title mb-1">{plan.action}</p>
+              <p className="text-sm text-slate-400">
+                Pick a vibe and I&apos;ll assemble a curated {plan.noun} — diverse picks, total
+                runtime, ready to save or share.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {config.moods.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setPlanMood((prev) => (prev?.id === m.id ? null : m))}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium border transition-colors ${
+                    planMood?.id === m.id
+                      ? "bg-hub-teal text-white border-hub-teal"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-xs text-slate-400 flex items-center gap-2">
+                Size
+                <select
+                  value={planSize}
+                  onChange={(e) => setPlanSize(parseInt(e.target.value, 10))}
+                  className="input-modern !w-auto !py-1.5"
+                >
+                  {[3, 4, 5, 8].map((n) => (
+                    <option key={n} value={n}>{n} picks</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" onClick={runBuild} className="btn-primary !py-2 !text-xs">
+                {plan.emoji} {plan.action}
+              </button>
+            </div>
+          </div>
+
+          {built && (
+            <div className="glass-panel p-5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-900 tracking-tight">{builtTitle}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{collectionTotal(built, domain)}</p>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <button onClick={saveBuilt} className="btn-secondary !py-1.5 !px-2.5 !text-xs !rounded-lg">Save</button>
+                  <button onClick={copyBuilt} className="btn-secondary !py-1.5 !px-2.5 !text-xs !rounded-lg">{copied ? "Copied ✓" : "Copy"}</button>
+                  <button onClick={openAll} className="btn-primary !py-1.5 !px-2.5 !text-xs !rounded-lg">Open all</button>
+                </div>
+              </div>
+              <ol className="space-y-2">
+                {built.map((i, n) => (
+                  <li key={i.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-2.5">
+                    <span className="text-slate-400 text-sm w-5 text-center shrink-0">{n + 1}</span>
+                    <span className="icon-box w-9 h-9 text-base shrink-0">{i.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-900 truncate">{i.title}</p>
+                      <p className="text-xs text-slate-400 truncate">{i.creator} · {i.genre} · {i.runtime}</p>
+                    </div>
+                    <button
+                      onClick={() => window.open(resultUrl(i), "_blank", "noopener,noreferrer")}
+                      className="btn-secondary !py-1 !px-2.5 !text-xs !rounded-lg shrink-0"
+                    >
+                      {config.actionLabel}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {collections.length > 0 && (
+            <div className="glass-panel p-5">
+              <p className="section-title mb-3">Saved {plan.noun}s ({collections.length})</p>
+              <div className="space-y-2">
+                {collections.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-2.5">
+                    <span className="text-lg shrink-0">{plan.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-900 truncate">{c.title}</p>
+                      <p className="text-xs text-slate-400">{c.itemIds.length} picks</p>
+                    </div>
+                    <button onClick={() => loadCollection(c)} className="btn-secondary !py-1 !px-2.5 !text-xs !rounded-lg shrink-0">Open</button>
+                    <button onClick={() => removeCollection(c.id)} className="btn-secondary !py-1 !px-2.5 !text-xs !rounded-lg shrink-0">Delete</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {tab === "new" && renderGrid(fresh, false, `No new ${config.nounPlural} this cycle.`)}
 
