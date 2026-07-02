@@ -19,9 +19,11 @@ import {
   collectionTitle,
   collectionTotal,
   deleteCollection,
+  formatMinutes,
   getCollections,
   planLabels,
   saveCollection,
+  scheduleCollection,
   type Collection,
 } from "@/lib/collections";
 import {
@@ -179,8 +181,19 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
   const [builtTitle, setBuiltTitle] = useState("");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [copied, setCopied] = useState(false);
+  const [scheduleDays, setScheduleDays] = useState(0); // 0 = not scheduled
+
+  // Compare capability
+  const [cmpAId, setCmpAId] = useState("");
+  const [cmpBId, setCmpBId] = useState("");
 
   useEffect(() => setCollections(getCollections(domain)), [domain]);
+  useEffect(() => {
+    if (catalog.length >= 2) {
+      setCmpAId(catalog[0].id);
+      setCmpBId(catalog[1].id);
+    }
+  }, [catalog]);
 
   const { response, sources, isLoading, ask } = useAIResponse();
 
@@ -221,7 +234,11 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
     setBuilt(picks);
     setBuiltTitle(collectionTitle(planMood, domain));
     setCopied(false);
+    setScheduleDays(0);
   };
+
+  const cmpA = catalog.find((i) => i.id === cmpAId);
+  const cmpB = catalog.find((i) => i.id === cmpBId);
 
   const saveBuilt = () => {
     if (!built) return;
@@ -266,6 +283,7 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
     { id: "discover", label: "Discover" },
     { id: "trending", label: "Trending" },
     { id: "plan", label: `${plan.emoji} ${plan.tab}` },
+    { id: "compare", label: "⚖️ Compare" },
     { id: "new", label: "New" },
     { id: "watchlist", label: `${config.watchlistLabel} (${saved.size})` },
   ];
@@ -526,6 +544,47 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
                   </li>
                 ))}
               </ol>
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <span className="text-xs text-slate-400">📅 Spread across</span>
+                {[0, 2, 3, 5, 7].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setScheduleDays(d)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border ${
+                      scheduleDays === d
+                        ? "bg-hub-teal text-white border-hub-teal"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    {d === 0 ? "Off" : `${d} days`}
+                  </button>
+                ))}
+              </div>
+
+              {scheduleDays > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {scheduleCollection(built, scheduleDays).map((day) => (
+                    <div key={day.day} className="rounded-xl border border-slate-100 p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-sm font-semibold text-slate-900">Day {day.day}</p>
+                        <span className="text-[11px] text-slate-400">~{formatMinutes(day.minutes)}</span>
+                      </div>
+                      <ul className="space-y-1">
+                        {day.items.map((it) => (
+                          <li key={it.id} className="flex items-center gap-2 text-xs text-slate-500">
+                            <span>{it.emoji}</span>
+                            <span className="truncate">{it.title}</span>
+                            <span className="text-slate-300">· {it.runtime}</span>
+                          </li>
+                        ))}
+                        {day.items.length === 0 && <li className="text-xs text-slate-400">— rest day —</li>}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -549,6 +608,85 @@ export default function MediaDiscoveryAgent({ domain }: { domain: EntertainmentD
           )}
         </div>
       )}
+
+      {tab === "compare" && cmpA && cmpB && (() => {
+        const rows: { label: string; a: string; b: string; win: "a" | "b" | null }[] = [
+          {
+            label: config.scoreLabel,
+            a: cmpA.score.toFixed(1),
+            b: cmpB.score.toFixed(1),
+            win: cmpA.score === cmpB.score ? null : cmpA.score > cmpB.score ? "a" : "b",
+          },
+          {
+            label: config.metricLabel,
+            a: formatMetric(cmpA, config).replace(` ${config.metricLabel}`, ""),
+            b: formatMetric(cmpB, config).replace(` ${config.metricLabel}`, ""),
+            win: cmpA.popularity === cmpB.popularity ? null : cmpA.popularity > cmpB.popularity ? "a" : "b",
+          },
+          {
+            label: "Momentum",
+            a: formatGrowth(cmpA.growthPercent),
+            b: formatGrowth(cmpB.growthPercent),
+            win: cmpA.growthPercent === cmpB.growthPercent ? null : cmpA.growthPercent > cmpB.growthPercent ? "a" : "b",
+          },
+          {
+            label: "Released",
+            a: `${cmpA.year}`,
+            b: `${cmpB.year}`,
+            win: cmpA.year === cmpB.year ? null : cmpA.year > cmpB.year ? "a" : "b",
+          },
+          { label: "Runtime", a: cmpA.runtime, b: cmpB.runtime, win: null },
+          { label: "Genre", a: cmpA.genre, b: cmpB.genre, win: null },
+          { label: "On", a: cmpA.platform, b: cmpB.platform, win: null },
+        ];
+        const aWins = rows.filter((r) => r.win === "a").length;
+        const bWins = rows.filter((r) => r.win === "b").length;
+        const verdict =
+          aWins === bWins ? "It's a tie — both are strong picks." : `${(aWins > bWins ? cmpA : cmpB).title} edges it, ${Math.max(aWins, bWins)}–${Math.min(aWins, bWins)}.`;
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {([[cmpAId, setCmpAId], [cmpBId, setCmpBId]] as const).map(([val, set], i) => (
+                <select key={i} value={val} onChange={(e) => set(e.target.value)} className="input-modern">
+                  {catalog.map((it) => (
+                    <option key={it.id} value={it.id}>{it.title}</option>
+                  ))}
+                </select>
+              ))}
+            </div>
+
+            <div className="glass-panel p-5">
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {[cmpA, cmpB].map((it, i) => (
+                  <div key={i} className="text-center">
+                    <div className="icon-box w-12 h-12 text-xl mx-auto mb-2">{it.emoji}</div>
+                    <p className="text-sm font-semibold text-slate-900 leading-tight">{it.title}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{it.creator}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {rows.map((r) => (
+                  <div key={r.label} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-2 text-sm">
+                    <span className={`text-right ${r.win === "a" ? "font-bold text-hub-green" : "text-slate-500"}`}>
+                      {r.a}{r.win === "a" ? " ✓" : ""}
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide text-slate-400 px-2">{r.label}</span>
+                    <span className={`text-left ${r.win === "b" ? "font-bold text-hub-green" : "text-slate-500"}`}>
+                      {r.win === "b" ? "✓ " : ""}{r.b}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <p className="mt-4 text-center text-sm text-slate-600 border-t border-slate-100 pt-3">
+                🏆 {verdict}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {tab === "new" && renderGrid(fresh, false, `No new ${config.nounPlural} this cycle.`)}
 

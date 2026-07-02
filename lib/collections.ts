@@ -65,6 +65,42 @@ export function collectionTitle(mood: MoodOption | null, domain: EntertainmentDo
   return mood ? `${mood.label} ${noun}` : `Your ${noun}`;
 }
 
+export function formatMinutes(mins: number): string {
+  const m = Math.round(mins);
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
+  return `${m}m`;
+}
+
+/** A load estimate for scheduling — real runtime, else episode-based, else a default. */
+export function loadMinutes(item: DiscoveryItem): number {
+  const rt = parseRuntimeMinutes(item);
+  if (rt > 0) return rt;
+  if (item.episodes) return item.episodes * 45; // series estimate
+  return 45;
+}
+
+export interface ScheduleDay {
+  day: number;
+  items: DiscoveryItem[];
+  minutes: number;
+}
+
+/** Spread items across `days`, balancing runtime per day (least-loaded first). */
+export function scheduleCollection(items: DiscoveryItem[], days: number): ScheduleDay[] {
+  const buckets: ScheduleDay[] = Array.from({ length: Math.max(1, days) }, (_, i) => ({
+    day: i + 1,
+    items: [],
+    minutes: 0,
+  }));
+  const sorted = [...items].sort((a, b) => loadMinutes(b) - loadMinutes(a));
+  for (const it of sorted) {
+    const target = buckets.reduce((min, b) => (b.minutes < min.minutes ? b : min), buckets[0]);
+    target.items.push(it);
+    target.minutes += loadMinutes(it);
+  }
+  return buckets;
+}
+
 function parseRuntimeMinutes(item: DiscoveryItem): number {
   const r = item.runtime;
   // "1h 58m"
